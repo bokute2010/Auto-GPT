@@ -17,8 +17,10 @@ from autogpt.log_cycle.log_cycle import (
 from autogpt.logs import logger, print_assistant_thoughts
 from autogpt.speech import say_text
 from autogpt.spinner import Spinner
-from autogpt.utils import clean_input
+from autogpt.utils import clean_input, update_pickle, get_pickle
 from autogpt.workspace import Workspace
+
+
 
 
 class Agent:
@@ -61,6 +63,7 @@ class Agent:
         system_prompt,
         triggering_prompt,
         workspace_directory,
+        user_frontend_input
     ):
         cfg = Config()
         self.ai_name = ai_name
@@ -79,6 +82,7 @@ class Agent:
         self.created_at = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.cycle_count = 0
         self.log_cycle_handler = LogCycleHandler()
+        self.user_frontend_input = user_frontend_input
 
     def start_interaction_loop(self):
         # Interaction Loop
@@ -87,9 +91,11 @@ class Agent:
         command_name = None
         arguments = None
         user_input = ""
-
+        exeCMD = False
+        # import pdb; pdb.set_trace()
         while True:
             # Discontinue if continuous limit is reached
+            
             self.cycle_count += 1
             self.log_cycle_handler.log_count_within_cycle = 0
             self.log_cycle_handler.log_cycle(
@@ -107,19 +113,44 @@ class Agent:
                 logger.typewriter_log(
                     "Continuous Limit Reached: ", Fore.YELLOW, f"{cfg.continuous_limit}"
                 )
-                break
+                return
             # Send message to AI, get response
-            with Spinner("Thinking... "):
-                assistant_reply = chat_with_ai(
-                    self,
-                    self.system_prompt,
-                    self.triggering_prompt,
-                    self.full_message_history,
-                    self.memory,
-                    cfg.fast_token_limit,
-                )  # TODO: This hardcodes the model to use GPT3.5. Make this an argument
-
+            
+            
+            user_config = get_pickle(1)
+            state =  user_config.get('state')
+            assistant_reply = user_config.get('assistant_reply')
             assistant_reply_json = fix_json_using_multiple_techniques(assistant_reply)
+            self.full_message_history = user_config.get('full_message_history')
+            if (state and exeCMD) or assistant_reply_json == {}:
+                
+                with Spinner("Thinking... "):
+                    assistant_reply = chat_with_ai(
+                        self,
+                        self.system_prompt,
+                        self.triggering_prompt,
+                        self.full_message_history,
+                        self.memory,
+                        cfg.fast_token_limit,
+                    )  # TODO: This hardcodes the model to use GPT3.5. Make this an argument
+                
+                
+                update_pickle(1, 'full_message_history', self.full_message_history)
+                update_pickle(1, 'state', False)
+                update_pickle(1, 'assistant_reply', assistant_reply)
+                assistant_reply_json = fix_json_using_multiple_techniques(assistant_reply)
+                command_name, arguments = get_command(assistant_reply_json)
+                assistant_thoughts = assistant_reply_json.get("thoughts", {})
+                assistant_thoughts_text = assistant_thoughts.get("text")
+                return {
+                    "command_name": command_name,
+                    "assistant_thoughts_text": assistant_thoughts_text
+                }
+            
+            # assistant_reply = user_config.get('assistant_reply')
+            
+
+            # assistant_reply_json = fix_json_using_multiple_techniques(assistant_reply)
             for plugin in cfg.plugins:
                 if not plugin.can_handle_post_planning():
                     continue
@@ -167,14 +198,19 @@ class Agent:
                     f"{self.ai_name}..."
                 )
                 while True:
-                    if cfg.chat_messages_enabled:
-                        console_input = clean_input("Waiting for your response...")
-                    else:
-                        console_input = clean_input(
-                            Fore.MAGENTA + "Input:" + Style.RESET_ALL
-                        )
+                    # if cfg.chat_messages_enabled:
+                    #     console_input = clean_input("Waiting for your response...")
+                    # else:
+                    #     console_input = clean_input(
+                    #         Fore.MAGENTA + "Input:" + Style.RESET_ALL
+                    #     )
+                    
+                    console_input = self.user_frontend_input
                     if console_input.lower().strip() == cfg.authorise_key:
                         user_input = "GENERATE NEXT COMMAND JSON"
+                         # Update state in pickle
+                        update_pickle(1, 'state', True)
+                        exeCMD = True
                         break
                     elif console_input.lower().strip() == "s":
                         logger.typewriter_log(
@@ -193,9 +229,15 @@ class Agent:
                         )
                         user_input = self_feedback_resp
                         command_name = "self_feedback"
+                        
+                        # Update state in pickle
+                        update_pickle(1, 'state', True)
+                        exeCMD = True
                         break
                     elif console_input.lower().strip() == "":
                         logger.warn("Invalid input format.")
+                        # Update state in pickle
+                        # update_pickle(1, 'state', True)
                         continue
                     elif console_input.lower().startswith(f"{cfg.authorise_key} -"):
                         try:
@@ -203,15 +245,22 @@ class Agent:
                                 int(console_input.split(" ")[1])
                             )
                             user_input = "GENERATE NEXT COMMAND JSON"
+                            # Update state in pickle
+                            update_pickle(1, 'state', True)
+                            exeCMD = True
                         except ValueError:
                             logger.warn(
                                 "Invalid input format. Please enter 'y -n' where n is"
                                 " the number of continuous tasks."
                             )
+                            # Update state in pickle
+                            update_pickle(1, 'state', True)
                             continue
                         break
                     elif console_input.lower() == cfg.exit_key:
                         user_input = "EXIT"
+                        # Update state in pickle
+                        # update_pickle(1, 'state', True)
                         break
                     else:
                         user_input = console_input
@@ -223,6 +272,9 @@ class Agent:
                             user_input,
                             USER_INPUT_FILE_NAME,
                         )
+                        # Update state in pickle
+                        update_pickle(1, 'state', True)
+                        exeCMD = True
                         break
 
                 if user_input == "GENERATE NEXT COMMAND JSON":
@@ -233,7 +285,7 @@ class Agent:
                     )
                 elif user_input == "EXIT":
                     logger.info("Exiting...")
-                    break
+                    return
             else:
                 # Print authorized commands left value
                 logger.typewriter_log(
@@ -285,14 +337,21 @@ class Agent:
             # history
             if result is not None:
                 self.full_message_history.append(create_chat_message("system", result))
+                # Update full_message_history in pickle
+                update_pickle(1, 'full_message_history', self.full_message_history)
                 logger.typewriter_log("SYSTEM: ", Fore.YELLOW, result)
             else:
                 self.full_message_history.append(
                     create_chat_message("system", "Unable to execute command")
                 )
+                # Update full_message_history in pickle
+                update_pickle(1, 'full_message_history', self.full_message_history)
                 logger.typewriter_log(
                     "SYSTEM: ", Fore.YELLOW, "Unable to execute command"
                 )
+            # return {
+            #     "assistant_thoughts_text": result
+            # }
 
     def _resolve_pathlike_command_args(self, command_args):
         if "directory" in command_args and command_args["directory"] in {"", "/"}:

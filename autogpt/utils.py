@@ -16,6 +16,32 @@ except ImportError:
 
 from autogpt.config import Config
 
+import pickle
+def add_pickle(object):
+    with open("data.pickle", "wb") as file:
+        pickle.dump(object, file)
+           
+def update_pickle(id, key, value):
+    temp = []
+    with open("data.pickle", "rb") as file:
+        loaded_data = pickle.load(file)
+        for data in loaded_data:
+            if data.get('id') == id:
+                index = loaded_data.index(data)
+                data[key] = value
+                loaded_data[index] = data
+                temp = loaded_data
+                
+    with open("data.pickle", "wb") as file:
+            pickle.dump(temp, file)   
+        
+def get_pickle(id):
+    with open("data.pickle", "rb") as file:
+        loaded_data = pickle.load(file)
+        for data in loaded_data:
+            if data.get('id') == id:
+                return data
+        return None
 
 def clean_input(prompt: str = "", talk=False):
     try:

@@ -3,6 +3,7 @@ import logging
 import sys
 from pathlib import Path
 
+
 from colorama import Fore, Style
 
 from autogpt.agent.agent import Agent
@@ -22,6 +23,8 @@ from autogpt.workspace import Workspace
 from scripts.install_plugin_deps import install_plugin_dependencies
 
 
+
+
 def run_auto_gpt(
     continuous: bool,
     continuous_limit: int,
@@ -37,6 +40,7 @@ def run_auto_gpt(
     skip_news: bool,
     workspace_directory: str,
     install_plugin_deps: bool,
+    user_frontend_input: str
 ):
     # Configure logging before we do anything else.
     logger.set_level(logging.DEBUG if debug else logging.INFO)
@@ -172,6 +176,7 @@ def run_auto_gpt(
     if cfg.debug_mode:
         logger.typewriter_log("Prompt:", Fore.GREEN, system_prompt)
 
+    
     agent = Agent(
         ai_name=ai_name,
         memory=memory,
@@ -182,5 +187,8 @@ def run_auto_gpt(
         system_prompt=system_prompt,
         triggering_prompt=DEFAULT_TRIGGERING_PROMPT,
         workspace_directory=workspace_directory,
+        user_frontend_input=user_frontend_input
     )
-    agent.start_interaction_loop()
+    return agent.start_interaction_loop()
+
+

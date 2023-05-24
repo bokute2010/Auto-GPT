@@ -42,6 +42,7 @@ def prompt_user() -> AIConfig:
         "input '--manual' to enter manual mode.",
         speak_text=True,
     )
+    
 
     user_desire = utils.clean_input(
         f"{Fore.LIGHTBLUE_EX}I want Auto-GPT to{Style.RESET_ALL}: "

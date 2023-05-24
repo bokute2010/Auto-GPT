@@ -71,6 +71,7 @@ def build_default_prompt_generator() -> PromptGenerator:
 
 
 def construct_main_ai_config() -> AIConfig:
+    
     """Construct the prompt for the AI to respond to
 
     Returns:
@@ -93,14 +94,18 @@ def construct_main_ai_config() -> AIConfig:
             f"Would you like me to return to being {config.ai_name}?",
             speak_text=True,
         )
-        should_continue = clean_input(
-            f"""Continue with the last settings?
-Name:  {config.ai_name}
-Role:  {config.ai_role}
-Goals: {config.ai_goals}
-API Budget: {"infinite" if config.api_budget <= 0 else f"${config.api_budget}"}
-Continue ({CFG.authorise_key}/{CFG.exit_key}): """
-        )
+        
+#         should_continue = clean_input(
+#             f"""Continue with the last settings?
+# Name:  {config.ai_name}
+# Role:  {config.ai_role}
+# Goals: {config.ai_goals}
+# API Budget: {"infinite" if config.api_budget <= 0 else f"${config.api_budget}"}
+# Continue ({CFG.authorise_key}/{CFG.exit_key}): """
+#         )
+        
+        should_continue = 'y'
+        
         if should_continue.lower() == CFG.exit_key:
             config = AIConfig()
 
